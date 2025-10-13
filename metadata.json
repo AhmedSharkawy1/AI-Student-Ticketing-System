@@ -1,0 +1,5 @@
+{
+  "name": "AI University Ticketing System",
+  "description": "A smart university ticketing system that uses AI to classify complaints and generate actionable recommendations for departments, streamlining issue resolution for students and staff.",
+  "requestFramePermissions": []
+}
