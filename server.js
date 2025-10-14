@@ -1,8 +1,8 @@
 require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2/promise');
 const cors = require('cors');
 const { GoogleGenAI, Type } = require("@google/genai");
+const { pool, setupDatabase } = require('./database');
 
 // --- INITIALIZATION ---
 const app = express();
@@ -17,29 +17,7 @@ const DEPARTMENTS = [
     'Student Affairs'
 ];
 
-// --- DATABASE CONNECTION ---
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'ai_helpdesk',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
-
-// Test connection
-pool.getConnection()
-  .then(conn => {
-    console.log('✅ Successfully connected to the MySQL database!');
-    conn.release();
-  })
-  .catch(err => {
-    console.error('❌ Failed to connect to the MySQL database:', err);
-    process.exit(1);
-  });
-
-// --- HELPER FUNCTIONS (Gemini API Calls are now secure on the backend) ---
+// --- HELPER FUNCTIONS (Gemini API Calls) ---
 
 const generateGeminiResponse = async (prompt) => {
     try {
@@ -91,46 +69,49 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(400).json({ message: 'Email, password, and role are required.' });
     }
     try {
-        const [rows] = await pool.query('SELECT * FROM users WHERE email = ? AND role = ?', [email, role]);
+        const [rows] = await pool.query('SELECT * FROM users WHERE email = ? AND role = ?', [email.toLowerCase(), role]);
         const user = rows[0];
-        // NOTE: In a real production app, passwords should be hashed and compared securely.
         if (user && user.password === password) {
-            const { password: _, ...userToReturn } = user; // Exclude password from response
+            const { password: _, ...userToReturn } = user;
             res.json(userToReturn);
         } else {
             res.status(401).json({ message: 'Invalid credentials or role.' });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Database error during login.' });
+        console.error('Login error:', error);
+        res.status(500).json({ message: 'Internal server error during login.' });
     }
 });
 
 app.post('/api/auth/signup', async (req, res) => {
     const { name, email, password, role, major, departmentName } = req.body;
+    
     try {
-        const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+        const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email.toLowerCase()]);
         if (existing.length > 0) {
             return res.status(409).json({ message: 'An account with this email already exists.' });
         }
         
         const id = `user_${Date.now()}`;
         const newUser = { id, name, email, password, role, major, departmentName };
-
+        
         await pool.query('INSERT INTO users SET ?', newUser);
         const { password: _, ...userToReturn } = newUser;
         res.status(201).json(userToReturn);
     } catch (error) {
-        res.status(500).json({ message: 'Database error during signup.' });
+        console.error('Signup error:', error);
+        res.status(500).json({ message: 'Internal server error during signup.' });
     }
 });
 
 // USERS
 app.get('/api/users', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT id, name, email, role, major, departmentName FROM users');
-        res.json(rows);
+        const [users] = await pool.query('SELECT id, name, email, role, major, departmentName FROM users');
+        res.json(users);
     } catch (error) {
-        res.status(500).json({ message: 'Failed to fetch users.' });
+        console.error('Fetch users error:', error);
+        res.status(500).json({ message: 'Internal server error fetching users.' });
     }
 });
 
@@ -138,10 +119,11 @@ app.get('/api/users', async (req, res) => {
 // COMPLAINTS
 app.get('/api/complaints', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM complaints ORDER BY createdAt DESC');
-        res.json(rows);
+        const [complaints] = await pool.query('SELECT * FROM complaints ORDER BY createdAt DESC');
+        res.json(complaints);
     } catch (error) {
-        res.status(500).json({ message: 'Failed to fetch complaints.' });
+        console.error('Fetch complaints error:', error);
+        res.status(500).json({ message: 'Internal server error fetching complaints.' });
     }
 });
 
@@ -159,11 +141,13 @@ app.post('/api/complaints', async (req, res) => {
         Actionable Recommendation for Staff:`;
         const aiRecommendation = await generateGeminiResponse(recommendationPrompt);
 
-        const newComplaint = { id, studentId, studentName, department, complaintText, status, priority, createdAt, aiRecommendation };
+        const newComplaint = { id, studentId, studentName, department, complaintText, status, priority, createdAt, aiRecommendation, solutionText: '' };
         
         await pool.query('INSERT INTO complaints SET ?', newComplaint);
+
         res.status(201).json(newComplaint);
     } catch (error) {
+        console.error("Error creating complaint: ", error);
         res.status(500).json({ message: 'Failed to create complaint.' });
     }
 });
@@ -171,14 +155,23 @@ app.post('/api/complaints', async (req, res) => {
 app.put('/api/complaints/:id', async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
+    
     try {
+        // Handle date conversion if present
+        if (updates.createdAt) {
+            updates.createdAt = new Date(updates.createdAt).toISOString().slice(0, 19).replace('T', ' ');
+        }
+
         const [result] = await pool.query('UPDATE complaints SET ? WHERE id = ?', [updates, id]);
+        
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Complaint not found.' });
         }
+
         const [updatedRows] = await pool.query('SELECT * FROM complaints WHERE id = ?', [id]);
         res.json(updatedRows[0]);
     } catch (error) {
+        console.error(`Error updating complaint ${id}:`, error);
         res.status(500).json({ message: 'Failed to update complaint.' });
     }
 });
@@ -232,7 +225,16 @@ app.post('/api/complaints/:id/generate-student-recommendation', async (req, res)
 
 
 // --- START SERVER ---
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  await setupDatabase();
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    console.log('--- Sample Login Credentials ---');
+    console.log('Student: student@university.edu / password');
+    console.log('IT Staff: chloe@university.edu / password');
+    console.log('--------------------------------');
+  });
+};
+
+startServer();
