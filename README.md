@@ -77,7 +77,7 @@ First, we'll set up and start the backend server.
     JWT_SECRET="a-very-long-and-secure-random-string-for-jwt-!@#$%"
 
     # Google Gemini API Key
-    API_KEY="AIzaSyD18TB8JB0q6_jqSf9t2k_vmGE57Wi6Pug"
+    API_KEY="ADD YOUR API_KEY HERE "
     ```
     *   Update `DB_PASSWORD` with your actual MySQL root password. Leave it blank if you don't have one.
     *   The `API_KEY` is already filled in from your previous request.
@@ -136,5 +136,7 @@ Once both the backend and frontend servers are running:
 │   ├── database.js         # MySQL connection, table setup, and data seeding
 │   ├── package.json        # Backend dependencies and scripts
 │   └── server.js           # Express backend server logic and API endpoints
-└── README.md               # You are here!
+└── README.md               # You are here
 ```
+Developed by Eng / Ahmed Said Roshdy Sharkawy
+contact me : WhatsApp http://wa.me/201092621367
