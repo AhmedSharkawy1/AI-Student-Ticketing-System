@@ -1,4 +1,4 @@
-# AI Student Ticketing System
+# AI University Ticketing System
 
 A smart university ticketing system that uses the Google Gemini API to automatically classify complaints, generate actionable recommendations, and streamline issue resolution for students and staff.
 
@@ -77,7 +77,7 @@ First, we'll set up and start the backend server.
     JWT_SECRET="a-very-long-and-secure-random-string-for-jwt-!@#$%"
 
     # Google Gemini API Key
-    API_KEY=""
+    API_KEY="AIzaSyD18TB8JB0q6_jqSf9t2k_vmGE57Wi6Pug"
     ```
     *   Update `DB_PASSWORD` with your actual MySQL root password. Leave it blank if you don't have one.
     *   The `API_KEY` is already filled in from your previous request.
@@ -138,5 +138,3 @@ Once both the backend and frontend servers are running:
 │   └── server.js           # Express backend server logic and API endpoints
 └── README.md               # You are here!
 ```
-created by Ahmed Said Roshdy Sharkawy 
-WhatsApp http://wa.me/201092621367

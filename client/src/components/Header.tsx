@@ -56,7 +56,7 @@ const Header: React.FC = () => {
                      <svg className="h-8 w-8 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-6.75 3h9m-9 3h9M3.375 21h17.25c1.657 0 3-1.343 3-3V6c0-1.657-1.343-3-3-3H3.375c-1.657 0-3 1.343-3 3v12c0 1.657 1.343 3 3 3z" />
                     </svg>
-                    <span className="text-xl font-bold text-gray-800 dark:text-gray-100 hidden sm:block">AI Student Ticketing System</span>
+                    <span className="text-xl font-bold text-gray-800 dark:text-gray-100 hidden sm:block">AI HelpDesk</span>
                 </Link>
             </div>
 
