@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import type { Complaint } from '../types';
 import { ComplaintStatus, ComplaintPriority } from '../types';
 import ComplaintCard from '../components/ComplaintCard';
 import { Link } from 'react-router-dom';
+import Spinner from '../components/Spinner';
 
 const priorityOrderMap: Record<ComplaintPriority, number> = {
     [ComplaintPriority.Urgent]: 1,
@@ -21,24 +21,19 @@ const statusOrderMap: Record<ComplaintStatus, number> = {
 
 const MyComplaints: React.FC = () => {
     const { user } = useAuth();
-    const { getComplaintsByStudent } = useData();
-    const [complaints, setComplaints] = useState<Complaint[]>([]);
+    const { getComplaintsByStudent, isLoading, complaints: allComplaints, refreshData } = useData();
     const [sortOrder, setSortOrder] = useState('date-desc');
 
-    const fetchComplaints = () => {
-         if (user) {
-            const studentComplaints = getComplaintsByStudent(user.id);
-            setComplaints(studentComplaints);
+    const myComplaints = useMemo(() => {
+        if (user) {
+            return getComplaintsByStudent(user.id);
         }
-    }
-    
-    useEffect(() => {
-       fetchComplaints();
-       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, getComplaintsByStudent]);
+        return [];
+    }, [user, getComplaintsByStudent, allComplaints]);
+
 
     const sortedComplaints = useMemo(() => {
-        const sorted = [...complaints];
+        const sorted = [...myComplaints];
         switch(sortOrder) {
             case 'date-asc':
                 sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -55,7 +50,7 @@ const MyComplaints: React.FC = () => {
                  break;
         }
         return sorted;
-    }, [complaints, sortOrder]);
+    }, [myComplaints, sortOrder]);
 
 
     return (
@@ -84,9 +79,11 @@ const MyComplaints: React.FC = () => {
                 </div>
             </div>
             
-            {sortedComplaints.length > 0 ? (
+            {isLoading ? (
+                <div className="text-center py-12"><Spinner size="lg" /></div>
+            ) : sortedComplaints.length > 0 ? (
                 <div className="space-y-4">
-                    {sortedComplaints.map(c => <ComplaintCard key={c.id} complaint={c} onUpdate={fetchComplaints}/>)}
+                    {sortedComplaints.map(c => <ComplaintCard key={c.id} complaint={c} onUpdate={refreshData}/>)}
                 </div>
             ) : (
                 <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow-md">

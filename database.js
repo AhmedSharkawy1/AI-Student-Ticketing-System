@@ -1,12 +1,13 @@
-require('dotenv').config();
+
+// require('dotenv').config(); // Using hardcoded credentials provided by user
 const mysql = require('mysql2/promise');
 const { complaintsCSV } = require('./data/complaints.csv.ts');
 
 const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
+    host: 'localhost',
+    user: 'root',
+    password: '',
+    database: 'ai_hepdesk2',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0

@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import type { Complaint } from '../types';
 import ComplaintCard from '../components/ComplaintCard';
 import { ComplaintStatus, ComplaintPriority } from '../types';
 import { useNotification } from '../context/NotificationContext';
@@ -25,26 +24,22 @@ const statusOrderMap: Record<ComplaintStatus, number> = {
 
 const DepartmentComplaints: React.FC = () => {
     const { user } = useAuth();
-    const { getComplaintsByDepartment, updateComplaint, refreshData } = useData();
+    const { getComplaintsByDepartment, updateComplaint, refreshData, isLoading, complaints: allComplaints } = useData();
     const { addNotification } = useNotification();
-    const [complaints, setComplaints] = useState<Complaint[]>([]);
+    
     const [filter, setFilter] = useState<ComplaintStatus | 'All'>('All');
     const [sortOrder, setSortOrder] = useState('date-desc');
     const [isBatchGenerating, setIsBatchGenerating] = useState(false);
 
-    const fetchComplaints = useCallback(() => {
+    const departmentComplaints = useMemo(() => {
         if (user && user.departmentName) {
-            const deptComplaints = getComplaintsByDepartment(user.departmentName);
-            setComplaints(deptComplaints);
+            return getComplaintsByDepartment(user.departmentName);
         }
-    }, [user, getComplaintsByDepartment]);
-    
-    useEffect(() => {
-        fetchComplaints();
-    }, [fetchComplaints]);
+        return [];
+    }, [user, getComplaintsByDepartment, allComplaints]);
 
-     const handleBatchGenerateSolutions = async () => {
-        const ticketsToProcess = complaints.filter(c => 
+    const handleBatchGenerateSolutions = async () => {
+        const ticketsToProcess = departmentComplaints.filter(c => 
             (c.status === ComplaintStatus.Open || c.status === ComplaintStatus.Reopened) && !c.solutionText
         );
 
@@ -57,30 +52,34 @@ const DepartmentComplaints: React.FC = () => {
         addNotification(`Starting AI solution generation for ${ticketsToProcess.length} tickets...`, 'info');
 
         let successCount = 0;
+        let failure = false;
         try {
-            for (const complaint of ticketsToProcess) {
+            await Promise.all(ticketsToProcess.map(async (complaint) => {
                 const { solutionText } = await fetchGeneratedSolution(complaint);
                 await updateComplaint(complaint.id, { solutionText });
                 successCount++;
-            }
+            }));
             addNotification(`Successfully generated ${successCount} solutions!`, 'success');
         } catch (error) {
             console.error('Batch AI generation failed:', error);
-            addNotification('An error occurred during batch generation. Some solutions may not have been created.', 'error');
+            failure = true;
         } finally {
-            refreshData(); // Refresh all data from server
+            if (failure) {
+                 addNotification('An error occurred during batch generation. Some solutions may not have been created.', 'error');
+            }
+            refreshData(); 
             setIsBatchGenerating(false);
         }
     };
     
     const processedComplaints = useMemo(() => {
-        let filteredComplaints = complaints;
+        let filtered = departmentComplaints;
 
         if (filter !== 'All') {
-            filteredComplaints = complaints.filter(c => c.status === filter);
+            filtered = departmentComplaints.filter(c => c.status === filter);
         }
 
-        const sorted = [...filteredComplaints];
+        const sorted = [...filtered];
 
         switch(sortOrder) {
             case 'date-asc':
@@ -99,11 +98,11 @@ const DepartmentComplaints: React.FC = () => {
         }
 
         return sorted;
-    }, [complaints, filter, sortOrder]);
+    }, [departmentComplaints, filter, sortOrder]);
 
     const openTicketsWithoutSolutions = useMemo(() => {
-        return complaints.filter(c => (c.status === ComplaintStatus.Open || c.status === ComplaintStatus.Reopened) && !c.solutionText).length;
-    }, [complaints]);
+        return departmentComplaints.filter(c => (c.status === ComplaintStatus.Open || c.status === ComplaintStatus.Reopened) && !c.solutionText).length;
+    }, [departmentComplaints]);
 
     return (
         <div>
@@ -145,9 +144,11 @@ const DepartmentComplaints: React.FC = () => {
                 </div>
             </div>
             
-            {processedComplaints.length > 0 ? (
+            {isLoading ? (
+                <div className="text-center py-12"><Spinner size="lg" /></div>
+            ) : processedComplaints.length > 0 ? (
                 <div className="space-y-4">
-                    {processedComplaints.map(c => <ComplaintCard key={c.id} complaint={c} onUpdate={fetchComplaints}/>)}
+                    {processedComplaints.map(c => <ComplaintCard key={c.id} complaint={c} onUpdate={refreshData}/>)}
                 </div>
             ) : (
                 <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow-md">
