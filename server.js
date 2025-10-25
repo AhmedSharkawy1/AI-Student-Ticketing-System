@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const ai = new GoogleGenAI({ apiKey: "ADD YOUR API_KEY HERE " });
+const ai = new GoogleGenAI({ apiKey: "ADD YOUR API_KEY HERE" });
 const DEPARTMENTS = [
     'Academic Support and Resources',
     'Financial Support',
