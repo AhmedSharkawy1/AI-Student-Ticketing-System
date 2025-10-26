@@ -11,7 +11,9 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const timeoutIds = React.useRef<NodeJS.Timeout[]>([]);
+  // FIX: Use ReturnType<typeof setTimeout> for cross-environment compatibility.
+  // The 'NodeJS' namespace is not available in a browser environment.
+  const timeoutIds = React.useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const removeNotification = useCallback((id: number) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));

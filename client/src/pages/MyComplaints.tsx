@@ -15,7 +15,9 @@ const priorityOrderMap: Record<ComplaintPriority, number> = {
 
 const statusOrderMap: Record<ComplaintStatus, number> = {
     [ComplaintStatus.Reopened]: 1,
+    // FIX: Used ComplaintStatus enum instead of ComplaintPriority for Open status.
     [ComplaintStatus.Open]: 2,
+    // FIX: Used ComplaintStatus enum instead of ComplaintPriority for Closed status.
     [ComplaintStatus.Closed]: 3,
 };
 

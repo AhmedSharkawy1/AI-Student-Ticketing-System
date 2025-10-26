@@ -27,6 +27,14 @@ const DEPARTMENTS = [
     'Student Affairs'
 ];
 
+const LABEL_TO_DEPARTMENT = {
+    'LABEL_0': 'Academic Support and Resources',
+    'LABEL_1': 'Financial Support',
+    'LABEL_2': 'IT',
+    'LABEL_3': 'Student Affairs'
+};
+
+
 // --- MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -40,6 +48,22 @@ const authenticateToken = (req, res, next) => {
         next();
     });
 };
+
+
+// --- Hugging Face Classifier Initialization ---
+let hfClassifier = null;
+// Asynchronously load and initialize the pipeline
+import('@xenova/transformers').then(transformers => {
+    console.log('Hugging Face Transformers.js library loaded.');
+    // Load a fine-tuned text classification model from the local './classification' directory.
+    transformers.pipeline('text-classification', './classification')
+        .then(pipeline => {
+            hfClassifier = pipeline;
+            console.log('Local BERT text classification pipeline is ready.');
+        })
+        .catch(err => console.error('Failed to create Hugging Face pipeline:', err));
+}).catch(err => console.error('Failed to load @xenova/transformers. The department suggestion will fall back to Gemini.', err));
+
 
 // --- HELPER FUNCTIONS (Gemini API Calls) ---
 const generateGeminiResponse = async (prompt) => {
@@ -228,6 +252,35 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
 // AI Endpoints
 app.post('/api/ai/suggest-department', authenticateToken, async (req, res) => {
     const { complaintText } = req.body;
+    if (!complaintText) {
+        return res.status(400).json({ message: 'complaintText is required.' });
+    }
+
+    // Use Hugging Face classifier if it's ready
+    if (hfClassifier) {
+        try {
+            console.log("Using local BERT classifier for department suggestion.");
+            const output = await hfClassifier(complaintText, { topk: 1 });
+            const topResult = output[0];
+            const department = LABEL_TO_DEPARTMENT[topResult.label];
+            
+            if (!department) {
+                 throw new Error(`Unknown label from classifier: ${topResult.label}`);
+            }
+
+            const suggestion = {
+                department: department,
+                reason: `AI classified this for the ${department} department (Confidence: ${Math.round(topResult.score * 100)}%).`
+            };
+            return res.json(suggestion);
+        } catch(error) {
+            console.error("Local BERT classifier error, falling back to Gemini:", error);
+            // Fallthrough to Gemini on error
+        }
+    }
+    
+    // Fallback to Gemini if classifier is not ready or failed
+    console.log("Local BERT classifier not available, falling back to Gemini for department suggestion.");
     const prompt = `Analyze the following student complaint to determine the most relevant department and provide a brief reason. Analyze the language of the complaint (e.g., Arabic or English) and provide your reason in that SAME language. The available departments are: "${DEPARTMENTS.join('", "')}".
     
 Complaint: "${complaintText}"
@@ -242,6 +295,7 @@ Respond in JSON format with "department" and "reason" keys.`;
         res.status(500).json({ message: "Failed to get AI suggestion." });
     }
 });
+
 
 app.post('/api/complaints/:id/generate-solution', authenticateToken, async (req, res) => {
     const { complaintText, department } = req.body;
